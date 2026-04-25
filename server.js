@@ -112,7 +112,14 @@ wss.on('connection', (ws) => {
                 setup: {
                     model: MODEL,
                     generation_config: {
-                        response_modalities: ["AUDIO"]
+                        response_modalities: ["AUDIO"],
+                        speech_config: {
+                            voice_config: {
+                                prebuilt_voice_config: {
+                                    voice_name: "Aoede" // Natural sounding female voice
+                                }
+                            }
+                        }
                     },
                     system_instruction: {
                         parts: [{
@@ -127,9 +134,21 @@ wss.on('connection', (ws) => {
         geminiWs.on('message', (data) => {
             try {
                 const response = JSON.parse(data.toString());
+                console.log('[Gemini] Received message:', JSON.stringify(response, null, 2));
                 
                 if (response.setupComplete) {
                     console.log('[Gemini] Setup complete');
+                    // Trigger initial response from Gemini
+                    const initialTurn = {
+                        client_content: {
+                            turns: [{
+                                role: "user",
+                                parts: [{ text: "The user has just joined the call. Please introduce yourself and ask how you can help." }]
+                            }],
+                            turn_complete: true
+                        }
+                    };
+                    geminiWs.send(JSON.stringify(initialTurn));
                     return;
                 }
 
