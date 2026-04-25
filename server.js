@@ -19,7 +19,7 @@ const GEMINI_WS_URL = `wss://${HOST}/ws/google.ai.generativelanguage.v1beta.Gene
 // --- Audio Utilities ---
 
 const MuLaw = {
-    decode: function(muLaw) {
+    decode: function (muLaw) {
         muLaw = ~muLaw;
         let sign = (muLaw & 0x80);
         let exponent = (muLaw & 0x70) >> 4;
@@ -29,7 +29,7 @@ const MuLaw = {
         sample = (sign !== 0) ? (0x84 - sample) : (sample - 0x84);
         return sample;
     },
-    encode: function(sample) {
+    encode: function (sample) {
         const sign = (sample < 0) ? 0x80 : 0x00;
         if (sample < 0) sample = -sample;
         sample += 0x84;
@@ -70,7 +70,7 @@ function pcmToTwilio(base64Payload) {
     const buffer = Buffer.from(base64Payload, 'base64');
     const numSamples = Math.floor(buffer.length / 2);
     const mulaw = Buffer.alloc(Math.floor(numSamples / 3));
-    
+
     for (let i = 0; i < mulaw.length; i++) {
         // Read 16-bit Little Endian sample from Gemini
         const sample = buffer.readInt16LE(i * 3 * 2);
@@ -84,14 +84,14 @@ function pcmToTwilio(base64Payload) {
 app.post('/voice', (req, res) => {
     console.log('[voice] Incoming call request');
     const twiml = new twilio.twiml.VoiceResponse();
-    
+
     try {
         twiml.say({ voice: 'Google.en-US-Standard-C' }, "Hello, this is Agrivision. What can I do for you today?");
-        
+
         const connect = twiml.connect();
         const streamUrl = `wss://${req.headers.host}/media-stream`;
         console.log(`[voice] Connecting stream to: ${streamUrl}`);
-        
+
         connect.stream({
             url: streamUrl,
         });
@@ -113,7 +113,7 @@ app.get('/health', (req, res) => {
 
 wss.on('connection', (ws) => {
     console.log('[Twilio] Stream connection established');
-    
+
     let geminiWs = null;
     let streamSid = null;
 
@@ -149,7 +149,7 @@ wss.on('connection', (ws) => {
             try {
                 const response = JSON.parse(data.toString());
                 console.log('[Gemini] Received message:', JSON.stringify(response, null, 2));
-                
+
                 if (response.setupComplete) {
                     console.log('[Gemini] Setup complete');
                     const initialTurn = {
