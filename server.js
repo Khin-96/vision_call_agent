@@ -14,7 +14,7 @@ const PORT = process.env.VOICE_PORT || process.env.PORT || 8080;
 const API_KEY = process.env.GEMINI_API_KEY;
 const MODEL = "models/gemini-2.5-flash-native-audio-preview-12-2025";
 const HOST = "generativelanguage.googleapis.com";
-const GEMINI_WS_URL = `wss://${HOST}/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${API_KEY}`;
+const GEMINI_WS_URL = `wss://${HOST}/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${API_KEY}`;
 
 // --- Audio Utilities ---
 
