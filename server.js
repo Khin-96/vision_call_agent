@@ -18,7 +18,6 @@ const GEMINI_WS_URL = `wss://${HOST}/ws/google.ai.generativelanguage.v1alpha.Gen
 
 // --- Audio Utilities ---
 
-// G.711 mu-law decoding/encoding
 const MuLaw = {
     decode: function(muLaw) {
         muLaw = ~muLaw;
@@ -36,31 +35,46 @@ const MuLaw = {
         sample += 0x84;
         if (sample > 32767) sample = 32767;
         let exponent = 7;
-        for (let expMask = 0x4000; (sample & expMask) === 0 && exponent > 0; exponent--, expMask >>= 1);
+        let expMask = 0x4000;
+        while (exponent > 0 && (sample & expMask) === 0) {
+            exponent--;
+            expMask >>= 1;
+        }
         let mantissa = (sample >> (exponent + 3)) & 0x0F;
         return ~(sign | (exponent << 4) | mantissa);
     }
 };
 
-// Convert base64 mulaw from Twilio to Int16 PCM (Upsampled 8k -> 16k)
+/**
+ * Convert 8kHz mu-law (Twilio) to 24kHz 16-bit PCM (Gemini)
+ * Tripling every sample for clean upsampling.
+ */
 function twilioToPcm(base64Payload) {
     const buffer = Buffer.from(base64Payload, 'base64');
-    const pcm = new Int16Array(buffer.length * 2);
+    const pcm = Buffer.alloc(buffer.length * 2 * 3); // 2 bytes per sample, tripled
     for (let i = 0; i < buffer.length; i++) {
         const sample = MuLaw.decode(buffer[i]);
-        pcm[i * 2] = sample;
-        pcm[i * 2 + 1] = sample;
+        // Write the same sample 3 times for 8k -> 24k
+        for (let j = 0; j < 3; j++) {
+            pcm.writeInt16LE(sample, (i * 3 + j) * 2);
+        }
     }
-    return Buffer.from(pcm.buffer);
+    return pcm;
 }
 
-// Convert Int16 PCM from Gemini (24k) to mulaw base64 for Twilio (8k)
+/**
+ * Convert 24kHz 16-bit PCM (Gemini) to 8kHz mu-law (Twilio)
+ * Taking every 3rd sample for clean downsampling.
+ */
 function pcmToTwilio(base64Payload) {
     const buffer = Buffer.from(base64Payload, 'base64');
-    const pcm = new Int16Array(buffer.buffer, buffer.byteOffset, buffer.byteLength / 2);
-    const mulaw = Buffer.alloc(Math.floor(pcm.length / 3));
+    const numSamples = Math.floor(buffer.length / 2);
+    const mulaw = Buffer.alloc(Math.floor(numSamples / 3));
+    
     for (let i = 0; i < mulaw.length; i++) {
-        mulaw[i] = MuLaw.encode(pcm[i * 3]);
+        // Read 16-bit Little Endian sample from Gemini
+        const sample = buffer.readInt16LE(i * 3 * 2);
+        mulaw[i] = MuLaw.encode(sample);
     }
     return mulaw.toString('base64');
 }
@@ -116,7 +130,7 @@ wss.on('connection', (ws) => {
                         speech_config: {
                             voice_config: {
                                 prebuilt_voice_config: {
-                                    voice_name: "Aoede" // Natural sounding female voice
+                                    voice_name: "Aoede"
                                 }
                             }
                         }
@@ -138,7 +152,6 @@ wss.on('connection', (ws) => {
                 
                 if (response.setupComplete) {
                     console.log('[Gemini] Setup complete');
-                    // Trigger initial response from Gemini
                     const initialTurn = {
                         client_content: {
                             turns: [{
@@ -211,7 +224,7 @@ wss.on('connection', (ws) => {
                     const geminiMessage = {
                         realtime_input: {
                             media_chunks: [{
-                                mime_type: "audio/pcm;rate=16000",
+                                mime_type: "audio/pcm;rate=24000",
                                 data: pcmData.toString('base64')
                             }]
                         }
